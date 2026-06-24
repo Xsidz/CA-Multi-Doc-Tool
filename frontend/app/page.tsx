@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FileText,
   Shield,
@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
+// All sample data below is entirely fictional — no real company, TAN, GSTIN, or challan number.
 const DOC_TYPES = [
   {
     key: "gstr3b",
@@ -36,18 +37,18 @@ const DOC_TYPES = [
     short: "Monthly GST return",
     description: "Extract outward supplies, ITC utilisation, and tax payables from monthly GST returns filed on the GSTN portal.",
     fields: [
-      { label: "GSTIN", example: "27AAAFG1234A1Z5" },
+      { label: "GSTIN", example: "27AABCD1234E1ZP" },
       { label: "Tax Period", example: "January 2026" },
       { label: "Financial Year", example: "2025-26" },
-      { label: "Output IGST", example: "₹ 84,500" },
-      { label: "Output CGST", example: "₹ 42,250" },
-      { label: "Output SGST", example: "₹ 42,250" },
-      { label: "Net Input IGST", example: "₹ 31,200" },
-      { label: "Net Input CGST", example: "₹ 15,600" },
-      { label: "Net Input SGST", example: "₹ 15,600" },
-      { label: "IGST Payable", example: "₹ 53,300" },
-      { label: "CGST Payable", example: "₹ 26,650" },
-      { label: "SGST Payable", example: "₹ 26,650" },
+      { label: "Output IGST", example: "₹ 72,000" },
+      { label: "Output CGST", example: "₹ 36,000" },
+      { label: "Output SGST", example: "₹ 36,000" },
+      { label: "Net Input IGST", example: "₹ 28,000" },
+      { label: "Net Input CGST", example: "₹ 14,000" },
+      { label: "Net Input SGST", example: "₹ 14,000" },
+      { label: "IGST Payable", example: "₹ 44,000" },
+      { label: "CGST Payable", example: "₹ 22,000" },
+      { label: "SGST Payable", example: "₹ 22,000" },
       { label: "Interest Paid", example: "₹ 0" },
       { label: "Date of Filing", example: "20 Feb 2026" },
     ],
@@ -58,19 +59,19 @@ const DOC_TYPES = [
     short: "TDS payment challan",
     description: "Parse TDS/TCS challans from the TRACES / Income Tax portal. Extracts all breakdown components and infers the deduction month from payment date.",
     fields: [
-      { label: "TAN", example: "MUMG22556C" },
-      { label: "Company Name", example: "GARWARE FULFLEX INDIA PVT LTD" },
+      { label: "TAN", example: "BOMA99999X" },
+      { label: "Company Name", example: "SAMPLE TRADING PVT LTD" },
       { label: "Financial Year", example: "2025-26" },
-      { label: "Section", example: "195" },
+      { label: "Section", example: "194C" },
       { label: "Major Head", example: "Other than Companies" },
-      { label: "Total Amount Paid", example: "₹ 1,34,723" },
-      { label: "Tax", example: "₹ 1,34,723" },
+      { label: "Total Amount Paid", example: "₹ 85,000" },
+      { label: "Tax", example: "₹ 85,000" },
       { label: "Surcharge", example: "₹ 0" },
       { label: "Cess", example: "₹ 0" },
       { label: "Interest", example: "₹ 0" },
       { label: "Penalty", example: "₹ 0" },
-      { label: "Challan No", example: "45389" },
-      { label: "Payment Date", example: "06 Feb 2026" },
+      { label: "Challan No", example: "00001" },
+      { label: "Payment Date", example: "07 Feb 2026" },
       { label: "Deduction Month", example: "January 2026" },
     ],
   },
@@ -82,11 +83,11 @@ const DOC_TYPES = [
     fields: [
       { label: "Challan Period", example: "Jan-2026" },
       { label: "Financial Year", example: "2025-26" },
-      { label: "Employer Contribution", example: "₹ 18,450" },
-      { label: "Employee Contribution", example: "₹ 7,380" },
-      { label: "Total ESIC", example: "₹ 25,830" },
-      { label: "Employer Challan No", example: "4521897630" },
-      { label: "Employee Challan No", example: "4521897631" },
+      { label: "Employer Contribution", example: "₹ 15,600" },
+      { label: "Employee Contribution", example: "₹ 6,240" },
+      { label: "Total ESIC", example: "₹ 21,840" },
+      { label: "Employer Challan No", example: "9900000001" },
+      { label: "Employee Challan No", example: "9900000002" },
       { label: "Employer Challan Date", example: "15 Feb 2026" },
       { label: "Employee Challan Date", example: "15 Feb 2026" },
     ],
@@ -97,17 +98,17 @@ const DOC_TYPES = [
     short: "Provident Fund challan",
     description: "Parse PF Electronic Challan Cum Return documents from the EPFO portal with full account-wise breakdowns (AC01, AC02, AC10, AC21, AC22).",
     fields: [
-      { label: "Establishment Code", example: "MH/BAN/0012345/000" },
-      { label: "Establishment Name", example: "GARWARE FULFLEX INDIA PVT LTD" },
+      { label: "Establishment Code", example: "MH/TST/0099999/000" },
+      { label: "Establishment Name", example: "SAMPLE TRADING PVT LTD" },
       { label: "Financial Year", example: "2025-26" },
       { label: "Wage Month", example: "January 2026" },
-      { label: "Employer EPF (AC01)", example: "₹ 43,200" },
-      { label: "Employer EPS (AC10)", example: "₹ 32,400" },
-      { label: "Employer EDLI (AC21)", example: "₹ 3,600" },
-      { label: "PF Admin (AC02)", example: "₹ 2,160" },
-      { label: "EDLI Admin (AC22)", example: "₹ 360" },
-      { label: "Employee EPF (AC01)", example: "₹ 43,200" },
-      { label: "Grand Total", example: "₹ 1,24,920" },
+      { label: "Employer EPF (AC01)", example: "₹ 36,000" },
+      { label: "Employer EPS (AC10)", example: "₹ 27,000" },
+      { label: "Employer EDLI (AC21)", example: "₹ 3,000" },
+      { label: "PF Admin (AC02)", example: "₹ 1,800" },
+      { label: "EDLI Admin (AC22)", example: "₹ 300" },
+      { label: "Employee EPF (AC01)", example: "₹ 36,000" },
+      { label: "Grand Total", example: "₹ 1,04,100" },
       { label: "Challan Date", example: "14 Feb 2026" },
     ],
   },
@@ -118,13 +119,13 @@ const DOC_TYPES = [
     description: "Extract Maharashtra Professional Tax Return Cum Challan details from MTR Form 6 receipts downloaded from Mahakosh.",
     fields: [
       { label: "Type of Return", example: "Maharashtra Profession Tax PTRC" },
-      { label: "TAN", example: "MUMG22556C" },
-      { label: "Company Name", example: "GARWARE FULFLEX INDIA PVT LTD" },
+      { label: "TAN", example: "BOMA99999X" },
+      { label: "Company Name", example: "SAMPLE TRADING PVT LTD" },
       { label: "PTRC Return Month", example: "Jan 2026" },
       { label: "Date of Filing", example: "20/02/2026" },
       { label: "Year", example: "2026" },
       { label: "PT Paid", example: "₹ 2,500" },
-      { label: "Challan No.", example: "MH2026021500001" },
+      { label: "Challan No.", example: "MH2026020000001" },
     ],
   },
 ];
@@ -224,9 +225,114 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// ─── Hero preview samples (fictional — rotates every 3.5s) ───────────────────
+const HERO_PREVIEWS = [
+  {
+    filename: "GSTR3B_Jan2026.pdf",
+    label: "GSTR-3B",
+    fieldCount: 14,
+    duration: "1.2 s",
+    fields: [
+      { label: "GSTIN", value: "27AABCD1234E1ZP" },
+      { label: "Tax Period", value: "January 2026" },
+      { label: "Output IGST", value: "₹ 72,000" },
+      { label: "Output CGST", value: "₹ 36,000" },
+      { label: "Output SGST", value: "₹ 36,000" },
+      { label: "Net ITC IGST", value: "₹ 28,000" },
+      { label: "IGST Payable", value: "₹ 44,000" },
+      { label: "CGST Payable", value: "₹ 22,000" },
+      { label: "SGST Payable", value: "₹ 22,000" },
+      { label: "Date of Filing", value: "20 Feb 2026" },
+    ],
+  },
+  {
+    filename: "TDS_ITNS281_Feb2026.pdf",
+    label: "TDS ITNS281",
+    fieldCount: 14,
+    duration: "0.8 s",
+    fields: [
+      { label: "TAN", value: "BOMA99999X" },
+      { label: "Company Name", value: "SAMPLE TRADING PVT LTD" },
+      { label: "FY", value: "2025-26" },
+      { label: "Section", value: "194C" },
+      { label: "Major Head", value: "Other than Companies" },
+      { label: "Total Amount", value: "₹ 85,000" },
+      { label: "Tax", value: "₹ 85,000" },
+      { label: "Surcharge", value: "₹ 0" },
+      { label: "Challan No", value: "00001" },
+      { label: "Deduction Month", value: "January 2026" },
+    ],
+  },
+  {
+    filename: "ESIC_Jan2026.pdf",
+    label: "ESIC",
+    fieldCount: 9,
+    duration: "0.6 s",
+    fields: [
+      { label: "Challan Period", value: "Jan-2026" },
+      { label: "Financial Year", value: "2025-26" },
+      { label: "Employer Contribution", value: "₹ 15,600" },
+      { label: "Employee Contribution", value: "₹ 6,240" },
+      { label: "Total ESIC", value: "₹ 21,840" },
+      { label: "Employer Challan No", value: "9900000001" },
+      { label: "Employee Challan No", value: "9900000002" },
+      { label: "Employer Date", value: "15 Feb 2026" },
+      { label: "Employee Date", value: "15 Feb 2026" },
+    ],
+  },
+  {
+    filename: "PF_ECR_Jan2026.pdf",
+    label: "PF ECR",
+    fieldCount: 12,
+    duration: "0.9 s",
+    fields: [
+      { label: "Establishment Code", value: "MH/TST/0099999/000" },
+      { label: "Establishment Name", value: "SAMPLE TRADING PVT LTD" },
+      { label: "Wage Month", value: "January 2026" },
+      { label: "Employer EPF (AC01)", value: "₹ 36,000" },
+      { label: "Employer EPS (AC10)", value: "₹ 27,000" },
+      { label: "Employer EDLI (AC21)", value: "₹ 3,000" },
+      { label: "PF Admin (AC02)", value: "₹ 1,800" },
+      { label: "Employee EPF", value: "₹ 36,000" },
+      { label: "Grand Total", value: "₹ 1,04,100" },
+    ],
+  },
+  {
+    filename: "PTRC_Feb2026.pdf",
+    label: "PTRC",
+    fieldCount: 8,
+    duration: "0.5 s",
+    fields: [
+      { label: "TAN", value: "BOMA99999X" },
+      { label: "Company Name", value: "SAMPLE TRADING PVT LTD" },
+      { label: "PTRC Return Month", value: "Jan 2026" },
+      { label: "Date of Filing", value: "20/02/2026" },
+      { label: "PT Paid", value: "₹ 2,500" },
+      { label: "Challan No.", value: "MH2026020000001" },
+      { label: "Year", value: "2026" },
+      { label: "Type", value: "Maharashtra PT PTRC" },
+    ],
+  },
+];
+
 export default function LandingPage() {
   const [activeDoc, setActiveDoc] = useState("gstr3b");
   const active = DOC_TYPES.find((d) => d.key === activeDoc) ?? DOC_TYPES[0];
+
+  // Auto-rotate hero preview
+  const [heroIdx, setHeroIdx] = useState(0);
+  const [fading, setFading] = useState(false);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setFading(true);
+      setTimeout(() => {
+        setHeroIdx((i) => (i + 1) % HERO_PREVIEWS.length);
+        setFading(false);
+      }, 300);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, []);
+  const heroPreview = HERO_PREVIEWS[heroIdx];
 
   return (
     <div className="min-h-screen bg-white font-sans antialiased">
@@ -303,10 +409,10 @@ export default function LandingPage() {
 
             {/* Right — product-UI mockup cards (Coinbase signature pattern) */}
             <div className="relative">
-              {/* Main card */}
+              {/* Main card — rotates through all 5 doc types */}
               <div
-                className="rounded-2xl border border-[#2a2e35] overflow-hidden w-full"
-                style={{ background: "#16181c" }}
+                className="rounded-2xl border border-[#2a2e35] overflow-hidden w-full transition-opacity duration-300"
+                style={{ background: "#16181c", opacity: fading ? 0 : 1 }}
               >
                 {/* Card header */}
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#2a2e35]">
@@ -316,7 +422,7 @@ export default function LandingPage() {
                       <span className="w-2.5 h-2.5 rounded-full bg-[#2a2e35]"></span>
                       <span className="w-2.5 h-2.5 rounded-full bg-[#2a2e35]"></span>
                     </div>
-                    <span className="font-mono text-[11px] text-[#5b616e] ml-1">TDS_ITNS281_Feb2026.pdf</span>
+                    <span className="font-mono text-[11px] text-[#5b616e] ml-1">{heroPreview.filename}</span>
                   </div>
                   <span className="inline-flex items-center gap-1.5 bg-emerald-900/30 border border-emerald-800/40 text-emerald-400 text-[11px] font-semibold px-2.5 py-1 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -325,19 +431,7 @@ export default function LandingPage() {
                 </div>
                 {/* Fields */}
                 <div className="px-5 py-4">
-                  {[
-                    { label: "TAN", value: "MUMG22556C" },
-                    { label: "Company", value: "GARWARE FULFLEX INDIA PVT LTD" },
-                    { label: "FY", value: "2025-26" },
-                    { label: "Section", value: "195 — Non-Resident" },
-                    { label: "Major Head", value: "Other than Companies (0021)" },
-                    { label: "Amount Paid", value: "₹ 1,34,723" },
-                    { label: "Tax", value: "₹ 1,34,723" },
-                    { label: "Surcharge", value: "₹ 0" },
-                    { label: "Challan No", value: "45389" },
-                    { label: "Deduction Month", value: "January 2026" },
-                    { label: "Payment Date", value: "06 Feb 2026" },
-                  ].map(({ label, value }) => (
+                  {heroPreview.fields.map(({ label, value }) => (
                     <div key={label} className="flex items-baseline justify-between py-[7px] border-b border-[#1e2127] last:border-0">
                       <span className="font-mono text-[11px] text-[#0F766E] w-36 shrink-0">{label}</span>
                       <span className="font-mono text-[11px] text-[#e2e8f0] text-right ml-2 truncate">{value}</span>
@@ -346,9 +440,25 @@ export default function LandingPage() {
                 </div>
                 {/* Card footer */}
                 <div className="flex items-center justify-between px-5 py-3 border-t border-[#2a2e35]">
-                  <span className="font-mono text-[11px] text-[#3a3f47]">11 fields · 0 errors</span>
-                  <span className="font-mono text-[11px] text-[#3a3f47]">0.8 s</span>
+                  <span className="font-mono text-[11px] text-[#3a3f47]">{heroPreview.fieldCount} fields · 0 errors</span>
+                  <span className="font-mono text-[11px] text-[#3a3f47]">{heroPreview.duration}</span>
                 </div>
+              </div>
+              {/* Rotation dots */}
+              <div className="flex justify-center gap-1.5 mt-3">
+                {HERO_PREVIEWS.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setFading(true); setTimeout(() => { setHeroIdx(i); setFading(false); }, 300); }}
+                    className="transition-all duration-200"
+                    aria-label={HERO_PREVIEWS[i].label}
+                  >
+                    <span className={cn(
+                      "block rounded-full transition-all duration-200",
+                      i === heroIdx ? "w-4 h-1.5 bg-[#F59E0B]" : "w-1.5 h-1.5 bg-[#2a2e35] hover:bg-[#3a3f47]"
+                    )} />
+                  </button>
+                ))}
               </div>
 
               {/* Floating secondary card */}

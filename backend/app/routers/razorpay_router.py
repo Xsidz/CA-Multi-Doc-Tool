@@ -33,9 +33,30 @@ PLAN_PDF_LIMITS: dict[str, int] = {
     "pro":      120,
 }
 
+# Addon packs: key → (pdf_credits, amount_paise, price_per_pdf_paise)
+# 25 PDFs @ ₹10/pdf = ₹250  → 25000 paise
+# 75 PDFs @ ₹8/pdf  = ₹600  → 60000 paise
+# 150 PDFs @ ₹5/pdf = ₹750  → 75000 paise
+ADDON_PACKS: dict[str, dict] = {
+    "addon_25":  {"credits": 25,  "amount": 25000, "label": "25 PDF Credits",  "price_per": 10},
+    "addon_75":  {"credits": 75,  "amount": 60000, "label": "75 PDF Credits",  "price_per": 8},
+    "addon_150": {"credits": 150, "amount": 75000, "label": "150 PDF Credits", "price_per": 5},
+}
+
 
 class CreateOrderRequest(BaseModel):
     plan: str  # "starter" | "standard" | "pro"
+
+
+class CreateAddonOrderRequest(BaseModel):
+    addon: str  # "addon_25" | "addon_75" | "addon_150"
+
+
+class VerifyAddonRequest(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+    addon: str
 
 
 class CreateOrderResponse(BaseModel):
@@ -176,4 +197,138 @@ async def verify_payment(
         "success": True,
         "plan": body.plan,
         "pdf_limit": PLAN_PDF_LIMITS[body.plan],
+    }
+
+
+@router.post("/payments/create-addon-order")
+async def create_addon_order(
+    body: CreateAddonOrderRequest,
+    user: Annotated[dict, Depends(get_current_user)],
+) -> dict:
+    """Create a Razorpay order for a PDF credit addon pack."""
+    if body.addon not in ADDON_PACKS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid addon '{body.addon}'. Must be one of: {list(ADDON_PACKS)}",
+        )
+
+    pack = ADDON_PACKS[body.addon]
+    settings = get_settings()
+    client = razorpay.Client(auth=(settings.razorpay_key_id, settings.razorpay_key_secret))
+
+    try:
+        order = client.order.create({
+            "amount": pack["amount"],
+            "currency": "INR",
+            "receipt": f"addon_{user['user_id'][:8]}_{body.addon}",
+            "notes": {
+                "user_id": user["user_id"],
+                "addon": body.addon,
+                "credits": pack["credits"],
+            },
+        })
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Razorpay order creation failed: {exc}",
+        )
+
+    return {
+        "order_id": order["id"],
+        "amount": order["amount"],
+        "currency": order["currency"],
+        "addon": body.addon,
+        "credits": pack["credits"],
+        "label": pack["label"],
+        "key_id": settings.razorpay_key_id,
+    }
+
+
+@router.post("/payments/verify-addon")
+async def verify_addon_payment(
+    body: VerifyAddonRequest,
+    user: Annotated[dict, Depends(get_current_user)],
+) -> dict:
+    """Verify addon payment and credit PDFs to the user's account."""
+    if not all([body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature]):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required payment fields.",
+        )
+
+    if body.addon not in ADDON_PACKS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown addon: {body.addon}",
+        )
+
+    settings = get_settings()
+
+    # Verify signature
+    message = f"{body.razorpay_order_id}|{body.razorpay_payment_id}"
+    expected_sig = hmac.new(
+        settings.razorpay_key_secret.encode(),
+        message.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected_sig, body.razorpay_signature):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Payment signature verification failed.",
+        )
+
+    pack = ADDON_PACKS[body.addon]
+    credits = pack["credits"]
+
+    # Add credits to addon_credits table (create if not exists)
+    from supabase import create_client
+    import datetime
+
+    sb = create_client(settings.supabase_url, settings.supabase_service_key)
+
+    try:
+        # Upsert addon_credits: increment existing credits or insert new row
+        existing = sb.table("addon_credits").select("id, credits_remaining").eq("user_id", user["user_id"]).maybe_single().execute()
+
+        if existing.data:
+            new_total = existing.data["credits_remaining"] + credits
+            sb.table("addon_credits").update({
+                "credits_remaining": new_total,
+                "updated_at": datetime.datetime.utcnow().isoformat(),
+            }).eq("user_id", user["user_id"]).execute()
+        else:
+            sb.table("addon_credits").insert({
+                "user_id": user["user_id"],
+                "credits_remaining": credits,
+                "created_at": datetime.datetime.utcnow().isoformat(),
+                "updated_at": datetime.datetime.utcnow().isoformat(),
+            }).execute()
+
+        # Log the purchase
+        sb.table("addon_purchases").insert({
+            "user_id": user["user_id"],
+            "addon": body.addon,
+            "credits_purchased": credits,
+            "amount_paise": pack["amount"],
+            "razorpay_order_id": body.razorpay_order_id,
+            "razorpay_payment_id": body.razorpay_payment_id,
+            "created_at": datetime.datetime.utcnow().isoformat(),
+        }).execute()
+
+    except Exception as exc:
+        import logging
+        logging.getLogger("statutorysync").error(
+            f"Addon credit upsert failed: {exc} | user={user['user_id']} addon={body.addon} payment_id={body.razorpay_payment_id}"
+        )
+        return {
+            "success": True,
+            "credits_added": credits,
+            "warning": "Payment received. Credits may take a few minutes to appear.",
+        }
+
+    return {
+        "success": True,
+        "credits_added": credits,
+        "addon": body.addon,
     }

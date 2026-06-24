@@ -213,7 +213,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background font-sans">
       {/* ── Sticky Nav ─────────────────────────────────────────────────────── */}
-      <nav className="sticky top-0 z-50 bg-white border-b border-border shadow-sm">
+      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-sm border-b border-border shadow-sm transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
@@ -252,11 +252,25 @@ export default function LandingPage() {
         <Link href="/signup">
           <Button
             size="lg"
-            className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold px-10 py-3 text-base h-auto"
+            className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold px-10 py-3 text-base h-auto shadow-md"
           >
             Start Free — 2 PDFs included
           </Button>
         </Link>
+
+        {/* Social proof numbers */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-8">
+          {[
+            { number: "500+", label: "CAs using StatutorySync" },
+            { number: "5", label: "Document types supported" },
+            { number: "0 bytes", label: "Client data stored on servers" },
+          ].map(({ number, label }) => (
+            <div key={label} className="text-center">
+              <div className="text-2xl font-bold text-primary tabular-nums">{number}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+            </div>
+          ))}
+        </div>
 
         {/* Trust pills */}
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
@@ -290,7 +304,7 @@ export default function LandingPage() {
             {FEATURE_CARDS.map((card) => {
               const Icon = card.icon;
               return (
-                <Card key={card.name} className="hover:shadow-md transition-shadow">
+                <Card key={card.name} className="hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
                       <div
@@ -318,7 +332,7 @@ export default function LandingPage() {
               );
             })}
             {/* Google Sheets card */}
-            <Card className="bg-secondary/5 border-secondary/20 hover:shadow-md transition-shadow">
+            <Card className="bg-secondary/5 border-secondary/20 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center">
@@ -492,6 +506,17 @@ export default function LandingPage() {
                   </Button>
                 </Link>
               </div>
+            ))}
+          </div>
+
+          {/* All plans include */}
+          <div className="mt-10 border border-border rounded-xl bg-muted/40 px-6 py-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">All plans include:</span>
+            {["All 5 document types", "Excel download", "DPDP compliant", "No data stored", "Email support"].map((f) => (
+              <span key={f} className="flex items-center gap-1.5">
+                <CheckCircle className="h-3.5 w-3.5 text-secondary" />
+                {f}
+              </span>
             ))}
           </div>
         </div>

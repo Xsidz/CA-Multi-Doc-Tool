@@ -46,7 +46,7 @@ export function Sidebar({ user }: SidebarProps) {
     .slice(0, 2);
 
   return (
-    <aside className="w-60 flex-shrink-0 h-screen bg-white border-r border-border flex flex-col">
+    <aside className="w-64 flex-shrink-0 h-screen bg-white border-r border-border flex flex-col">
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 py-5 border-b border-border">
         <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
@@ -56,28 +56,30 @@ export function Sidebar({ user }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-0.5">
         {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
-          const isActive = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+          const isActive =
+            pathname === href ||
+            (href !== "/dashboard" && pathname.startsWith(href));
           return (
             <Link
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 relative",
                 isActive
-                  ? "bg-primary text-white"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-primary/8 text-primary font-semibold border-l-2 border-primary pl-[10px]"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground border-l-2 border-transparent"
               )}
             >
-              <Icon className="h-4 w-4 flex-shrink-0" />
+              <Icon className={cn("h-4 w-4 flex-shrink-0", isActive ? "text-primary" : "")} />
               {label}
             </Link>
           );
         })}
       </nav>
 
-      {/* Usage */}
+      {/* Divider + Usage */}
       <div className="border-t border-border">
         <UsageBadge />
       </div>
@@ -95,6 +97,7 @@ export function Sidebar({ user }: SidebarProps) {
           onClick={handleLogout}
           className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
           title="Logout"
+          aria-label="Logout"
         >
           <LogOut className="h-4 w-4" />
         </button>

@@ -6,14 +6,26 @@ import {
   FileText,
   Shield,
   Lock,
-  CheckCircle,
+  Check,
   ChevronDown,
-  Zap,
   ArrowRight,
   FileSpreadsheet,
+  CheckCircle,
+  Zap,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+// ─── Design tokens (Coinbase-inspired, StatutorySync brand) ──────────────────
+// Primary action: #1E3A5F (navy) — single action color, used scarcely
+// Ink: #0a0b0d — display headlines, primary text
+// Body: #5b616e — default running text
+// Surface dark: #0a0b0d — dark hero background
+// Surface dark elevated: #16181c — floating cards inside dark hero
+// Canvas: #ffffff
+// Surface strong: #eef0f3 — secondary button fills, badge pills
+// Hairline: #dee1e6 — 1px dividers
+// Teal semantic: #0F766E — success / green equivalent
+// Saffron: #F59E0B — hero CTA accent
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -22,7 +34,7 @@ const DOC_TYPES = [
     key: "gstr3b",
     name: "GSTR-3B",
     short: "Monthly GST return",
-    description: "Extract outward supplies, ITC, tax liabilities and payables from monthly GST returns filed on the GSTN portal.",
+    description: "Extract outward supplies, ITC utilisation, and tax payables from monthly GST returns filed on the GSTN portal.",
     fields: [
       { label: "GSTIN", example: "27AAAFG1234A1Z5" },
       { label: "Tax Period", example: "January 2026" },
@@ -30,21 +42,21 @@ const DOC_TYPES = [
       { label: "Output IGST", example: "₹ 84,500" },
       { label: "Output CGST", example: "₹ 42,250" },
       { label: "Output SGST", example: "₹ 42,250" },
-      { label: "ITC IGST", example: "₹ 31,200" },
-      { label: "ITC CGST", example: "₹ 15,600" },
-      { label: "ITC SGST", example: "₹ 15,600" },
+      { label: "Net Input IGST", example: "₹ 31,200" },
+      { label: "Net Input CGST", example: "₹ 15,600" },
+      { label: "Net Input SGST", example: "₹ 15,600" },
       { label: "IGST Payable", example: "₹ 53,300" },
       { label: "CGST Payable", example: "₹ 26,650" },
       { label: "SGST Payable", example: "₹ 26,650" },
+      { label: "Interest Paid", example: "₹ 0" },
       { label: "Date of Filing", example: "20 Feb 2026" },
-      { label: "Total Fields", example: "35 extracted" },
     ],
   },
   {
     key: "tds",
     name: "TDS ITNS281",
     short: "TDS payment challan",
-    description: "Parse TDS/TCS challans from the TRACES/Income Tax portal. Extracts all breakdown components and deduction month.",
+    description: "Parse TDS/TCS challans from the TRACES / Income Tax portal. Extracts all breakdown components and infers the deduction month from payment date.",
     fields: [
       { label: "TAN", example: "MUMG22556C" },
       { label: "Company Name", example: "GARWARE FULFLEX INDIA PVT LTD" },
@@ -56,6 +68,7 @@ const DOC_TYPES = [
       { label: "Surcharge", example: "₹ 0" },
       { label: "Cess", example: "₹ 0" },
       { label: "Interest", example: "₹ 0" },
+      { label: "Penalty", example: "₹ 0" },
       { label: "Challan No", example: "45389" },
       { label: "Payment Date", example: "06 Feb 2026" },
       { label: "Deduction Month", example: "January 2026" },
@@ -65,7 +78,7 @@ const DOC_TYPES = [
     key: "esic",
     name: "ESIC",
     short: "Employee State Insurance challan",
-    description: "Extract employer and employee ESIC contributions from challan receipts downloaded from the ESIC portal.",
+    description: "Extract employer and employee ESIC contributions from challan receipts, including separate challan numbers for each contribution type.",
     fields: [
       { label: "Challan Period", example: "Jan-2026" },
       { label: "Financial Year", example: "2025-26" },
@@ -82,10 +95,10 @@ const DOC_TYPES = [
     key: "pf",
     name: "PF ECR",
     short: "Provident Fund challan",
-    description: "Parse PF Electronic Challan Cum Return documents from the EPFO portal with full account-wise breakdowns.",
+    description: "Parse PF Electronic Challan Cum Return documents from the EPFO portal with full account-wise breakdowns (AC01, AC02, AC10, AC21, AC22).",
     fields: [
       { label: "Establishment Code", example: "MH/BAN/0012345/000" },
-      { label: "Establishment Name", example: "GARWARE FULFLEX INDIA" },
+      { label: "Establishment Name", example: "GARWARE FULFLEX INDIA PVT LTD" },
       { label: "Financial Year", example: "2025-26" },
       { label: "Wage Month", example: "January 2026" },
       { label: "Employer EPF (AC01)", example: "₹ 43,200" },
@@ -95,13 +108,14 @@ const DOC_TYPES = [
       { label: "EDLI Admin (AC22)", example: "₹ 360" },
       { label: "Employee EPF (AC01)", example: "₹ 43,200" },
       { label: "Grand Total", example: "₹ 1,24,920" },
+      { label: "Challan Date", example: "14 Feb 2026" },
     ],
   },
   {
     key: "ptrc",
     name: "PTRC",
     short: "Professional Tax challan",
-    description: "Extract Maharashtra Professional Tax Return Cum Challan details from MTR Form 6 receipts.",
+    description: "Extract Maharashtra Professional Tax Return Cum Challan details from MTR Form 6 receipts downloaded from Mahakosh.",
     fields: [
       { label: "Type of Return", example: "Maharashtra Profession Tax PTRC" },
       { label: "TAN", example: "MUMG22556C" },
@@ -120,98 +134,89 @@ const PLANS = [
     key: "free",
     name: "Free",
     price: "₹0",
-    period: "forever",
-    pdfCount: "2 PDFs / month",
+    period: "",
+    subtitle: "2 PDFs / month",
     features: ["All 5 document types", "Excel download", "Email support"],
-    cta: "Get Started Free",
-    featured: false,
+    cta: "Get started",
     dark: false,
-    recommended: false,
+    featured: false,
   },
   {
     key: "starter",
     name: "Starter",
     price: "₹249",
-    period: "/ month",
-    pdfCount: "25 PDFs / month",
+    period: "/mo",
+    subtitle: "25 PDFs / month",
     features: ["All 5 document types", "Excel + Google Sheets", "Email support"],
-    cta: "Start Starter",
-    featured: false,
+    cta: "Get started",
     dark: false,
-    recommended: false,
+    featured: false,
   },
   {
     key: "standard",
     name: "Standard",
     price: "₹449",
-    period: "/ month",
-    pdfCount: "50 PDFs / month",
+    period: "/mo",
+    subtitle: "50 PDFs / month",
     features: ["All 5 document types", "Excel + Google Sheets", "Priority support"],
-    cta: "Start Standard",
+    cta: "Get started",
+    dark: true,
     featured: true,
-    dark: false,
-    recommended: true,
   },
   {
     key: "pro",
     name: "Pro",
     price: "₹699",
-    period: "/ month",
-    pdfCount: "120 PDFs / month",
+    period: "/mo",
+    subtitle: "120 PDFs / month",
     features: ["All 5 document types", "Excel + Google Sheets", "Priority support", "Dedicated account manager"],
-    cta: "Start Pro",
+    cta: "Get started",
+    dark: false,
     featured: false,
-    dark: true,
-    recommended: false,
   },
 ];
 
 const FAQS = [
   {
     q: "Is my data secure?",
-    a: "Yes. StatutorySync processes PDFs entirely in server memory and discards them immediately after parsing. No file bytes are written to disk or stored in any database. We are DPDP-compliant — only a SHA-256 hash of the filename and a timestamp are retained for usage tracking.",
+    a: "StatutorySync processes PDFs entirely in server memory and discards them immediately after parsing. No file bytes are written to disk or stored in any database. We are DPDP-compliant — only a SHA-256 hash of the filename and a timestamp are retained for usage tracking. Your clients' financial data never rests on our infrastructure.",
   },
   {
     q: "What happens to my PDFs after parsing?",
-    a: "Nothing — they are gone. The moment parsing completes and your structured data is returned to the browser, the file is discarded from server memory. There is no storage, no queue, no backup. Your clients' financial data never rests on our infrastructure.",
+    a: "Nothing — they are gone. The moment parsing completes and your structured data is returned to the browser, the file is discarded from server memory. There is no storage, no queue, no backup.",
   },
   {
     q: "Which PDF formats are supported?",
-    a: "We support text-layer PDFs generated directly by official government portals: GSTN (GSTR-3B), TRACES/Income Tax (TDS ITNS281), ESIC portal, EPFO (PF ECR), and Maharashtra's e-payment portal (PTRC). Scanned or image-only PDFs are not supported — OCR is on our roadmap.",
+    a: "We support text-layer PDFs generated directly by official government portals: GSTN (GSTR-3B), TRACES/Income Tax (TDS ITNS281), ESIC portal, EPFO (PF ECR), and Maharashtra's Mahakosh portal (PTRC). Scanned or image-only PDFs are not supported in V1.",
   },
   {
     q: "Can I process PDFs from any portal?",
-    a: "Currently we support the five specific document types listed above. Each parser is purpose-built for the exact layout and field structure of that document — generic OCR would give unreliable results for statutory compliance data. We add new document types based on demand.",
+    a: "Currently we support five specific document types. Each parser is purpose-built for the exact layout and field structure of that document — generic OCR gives unreliable results for statutory compliance data. We add new document types based on demand.",
   },
   {
     q: "What does 'PDFs / month' mean?",
-    a: "Each individual PDF file you upload and parse counts as one unit. If you upload 5 TDS challans in one batch, that counts as 5. The counter resets on your billing anniversary date each month. Unused capacity does not roll over.",
+    a: "Each individual PDF file you upload and parse counts as one unit. If you upload 5 TDS challans in one batch, that counts as 5. The counter resets on your billing anniversary date. Unused capacity does not roll over.",
   },
 ];
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Components ───────────────────────────────────────────────────────────────
 
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-border last:border-0">
+    <div className="border-b border-[#dee1e6] last:border-0">
       <button
-        className="w-full flex items-center justify-between py-5 text-left text-foreground hover:text-primary transition-colors"
+        className="w-full flex items-center justify-between py-5 text-left text-[#0a0b0d] hover:text-[#1E3A5F] transition-colors"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
-        <span className="font-medium pr-8">{q}</span>
+        <span className="font-medium text-base pr-8 leading-snug">{q}</span>
         <ChevronDown
-          className={cn(
-            "h-4 w-4 text-muted-foreground transition-transform duration-200 flex-shrink-0",
-            open && "rotate-180"
-          )}
+          className={cn("h-4 w-4 text-[#7c828a] transition-transform duration-200 flex-shrink-0", open && "rotate-180")}
         />
       </button>
       {open && (
-        <div className="pb-5 text-muted-foreground text-sm leading-relaxed pr-8">
-          {a}
-        </div>
+        <p className="pb-5 text-[#5b616e] text-sm leading-relaxed pr-8">{a}</p>
       )}
     </div>
   );
@@ -221,116 +226,147 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 
 export default function LandingPage() {
   const [activeDoc, setActiveDoc] = useState("gstr3b");
-  const activeDocData = DOC_TYPES.find((d) => d.key === activeDoc) ?? DOC_TYPES[0];
+  const active = DOC_TYPES.find((d) => d.key === activeDoc) ?? DOC_TYPES[0];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans">
+    <div className="min-h-screen bg-white font-sans antialiased">
 
       {/* ── Navigation ─────────────────────────────────────────────────────── */}
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 h-15 flex items-center justify-between" style={{ height: "60px" }}>
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-primary rounded flex items-center justify-center">
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#dee1e6]">
+        <div className="max-w-[1200px] mx-auto px-6 lg:px-8 flex items-center justify-between" style={{ height: 64 }}>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#1E3A5F] flex items-center justify-center">
               <FileText className="h-3.5 w-3.5 text-white" />
             </div>
-            <span className="font-semibold text-lg text-primary tracking-tight">StatutorySync</span>
+            <span className="font-semibold text-[15px] text-[#0a0b0d] tracking-tight">StatutorySync</span>
           </div>
-          <div className="flex items-center gap-6">
-            <a href="#pricing" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-              Pricing
-            </a>
-            <Link href="/login" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-              Login
-            </Link>
-            <Link href="/signup">
-              <Button size="sm" className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold h-8 px-4 text-sm">
-                Start Free
-              </Button>
-            </Link>
+          <div className="hidden sm:flex items-center gap-7">
+            <a href="#how" className="text-[14px] font-medium text-[#5b616e] hover:text-[#0a0b0d] transition-colors">How it works</a>
+            <a href="#pricing" className="text-[14px] font-medium text-[#5b616e] hover:text-[#0a0b0d] transition-colors">Pricing</a>
+            <Link href="/login" className="text-[14px] font-medium text-[#5b616e] hover:text-[#0a0b0d] transition-colors">Sign in</Link>
           </div>
+          <Link href="/signup">
+            <button className="bg-[#1E3A5F] hover:bg-[#162d4a] text-white text-[15px] font-semibold px-5 h-[44px] rounded-full transition-colors">
+              Get started
+            </button>
+          </Link>
         </div>
       </nav>
 
-      {/* ── Hero ───────────────────────────────────────────────────────────── */}
-      <section className="bg-primary text-white">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-28">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+      {/* ── Hero — dark band ───────────────────────────────────────────────── */}
+      <section style={{ background: "#0a0b0d" }} className="text-white">
+        <div className="max-w-[1200px] mx-auto px-6 lg:px-8 py-24 lg:py-32">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
 
-            {/* Left: Copy */}
+            {/* Left */}
             <div>
-              <div className="inline-flex items-center gap-2 mb-6">
-                <span className="text-[#0F766E] text-xs font-semibold tracking-widest uppercase">
-                  Statutory Compliance Automation
-                </span>
+              {/* Badge pill */}
+              <div className="inline-flex items-center gap-2 bg-[#16181c] border border-[#2a2e35] rounded-full px-4 py-1.5 mb-8">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#05b169]"></span>
+                <span className="text-[12px] font-semibold text-[#a8acb3] tracking-widest uppercase">Statutory Compliance Automation</span>
               </div>
-              <h1 className="text-5xl lg:text-6xl font-bold leading-[1.08] tracking-tight mb-6" style={{ letterSpacing: "-0.02em" }}>
-                Your clients&apos; PDFs.<br />
-                <span className="text-[#F59E0B]">Structured data.</span><br />
+
+              <h1
+                className="text-white leading-[1.0] mb-6"
+                style={{ fontSize: "clamp(44px, 5.5vw, 72px)", fontWeight: 400, letterSpacing: "-1.8px" }}
+              >
+                Your clients&rsquo;<br />
+                PDFs.<br />
+                <span style={{ color: "#F59E0B" }}>Structured data.</span><br />
                 Instantly.
               </h1>
-              <p className="text-lg text-[#CBD5E1] leading-relaxed mb-8 max-w-lg">
-                Stop copying figures from GSTR-3B, TDS challans, and PF returns into Excel by hand.
-                Upload the PDF — get the data.
+
+              <p className="text-[#a8acb3] text-[17px] leading-relaxed mb-10 max-w-[420px]">
+                Stop copying figures from GSTR-3B, TDS challans, and PF returns into Excel by hand. Upload the PDF — get the data.
               </p>
-              <div className="flex flex-col sm:flex-row gap-3 mb-8">
+
+              <div className="flex flex-wrap gap-3 mb-10">
                 <Link href="/signup">
-                  <Button
-                    size="lg"
-                    className="bg-[#F59E0B] hover:bg-[#D97706] text-[#0F172A] font-semibold px-8 h-12 text-base gap-2"
-                  >
-                    Start Free — No card needed
+                  <button className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#D97706] text-[#0a0b0d] text-[16px] font-semibold px-8 h-[56px] rounded-full transition-colors">
+                    Start free
                     <ArrowRight className="h-4 w-4" />
-                  </Button>
+                  </button>
                 </Link>
+                <a href="#how">
+                  <button className="bg-[#16181c] hover:bg-[#1e2127] text-white text-[16px] font-semibold px-8 h-[56px] rounded-full border border-[#2a2e35] transition-colors">
+                    See how it works
+                  </button>
+                </a>
               </div>
-              <div className="flex items-center gap-6 text-sm text-[#94A3B8]">
-                <span><strong className="text-white font-semibold">500+</strong> CAs</span>
-                <span className="text-[#334155]">·</span>
-                <span><strong className="text-white font-semibold">5</strong> document types</span>
-                <span className="text-[#334155]">·</span>
-                <span><strong className="text-white font-semibold">Zero</strong> data stored</span>
+
+              <div className="flex items-center gap-5 text-[13px] text-[#5b616e]">
+                <span className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" /> DPDP compliant</span>
+                <span className="flex items-center gap-1.5"><Lock className="h-3.5 w-3.5" /> Zero data stored</span>
+                <span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5" /> No credit card</span>
               </div>
             </div>
 
-            {/* Right: Extraction preview */}
-            <div className="lg:justify-self-end w-full max-w-md">
-              <div className="rounded-xl overflow-hidden shadow-2xl border border-[#334155]" style={{ background: "#0F1C2E" }}>
-                {/* Header bar */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-[#1E3A5F]">
+            {/* Right — product-UI mockup cards (Coinbase signature pattern) */}
+            <div className="relative">
+              {/* Main card */}
+              <div
+                className="rounded-2xl border border-[#2a2e35] overflow-hidden w-full"
+                style={{ background: "#16181c" }}
+              >
+                {/* Card header */}
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#2a2e35]">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-[#64748B]">TDS_ITNS281_Jan2026.pdf</span>
+                    <div className="flex gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#2a2e35]"></span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#2a2e35]"></span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#2a2e35]"></span>
+                    </div>
+                    <span className="font-mono text-[11px] text-[#5b616e] ml-1">TDS_ITNS281_Feb2026.pdf</span>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 bg-emerald-900/40 text-emerald-400 text-xs font-medium px-2 py-0.5 rounded-full border border-emerald-800/60">
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-900/30 border border-emerald-800/40 text-emerald-400 text-[11px] font-semibold px-2.5 py-1 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                     Parsed
                   </span>
                 </div>
                 {/* Fields */}
-                <div className="p-4 space-y-0">
+                <div className="px-5 py-4">
                   {[
                     { label: "TAN", value: "MUMG22556C" },
                     { label: "Company", value: "GARWARE FULFLEX INDIA PVT LTD" },
-                    { label: "Financial Year", value: "2025-26" },
-                    { label: "Section", value: "195" },
-                    { label: "Major Head", value: "Other than Companies" },
+                    { label: "FY", value: "2025-26" },
+                    { label: "Section", value: "195 — Non-Resident" },
+                    { label: "Major Head", value: "Other than Companies (0021)" },
                     { label: "Amount Paid", value: "₹ 1,34,723" },
                     { label: "Tax", value: "₹ 1,34,723" },
                     { label: "Surcharge", value: "₹ 0" },
                     { label: "Challan No", value: "45389" },
-                    { label: "Payment Date", value: "06 Feb 2026" },
                     { label: "Deduction Month", value: "January 2026" },
+                    { label: "Payment Date", value: "06 Feb 2026" },
                   ].map(({ label, value }) => (
-                    <div key={label} className="flex items-baseline justify-between py-1.5 border-b border-[#1E293B] last:border-0">
-                      <span className="font-mono text-xs text-[#0F766E] shrink-0 w-36">{label}</span>
-                      <span className="font-mono text-xs text-[#E2E8F0] text-right truncate ml-2">{value}</span>
+                    <div key={label} className="flex items-baseline justify-between py-[7px] border-b border-[#1e2127] last:border-0">
+                      <span className="font-mono text-[11px] text-[#0F766E] w-36 shrink-0">{label}</span>
+                      <span className="font-mono text-[11px] text-[#e2e8f0] text-right ml-2 truncate">{value}</span>
                     </div>
                   ))}
                 </div>
-                {/* Footer */}
-                <div className="px-4 py-3 border-t border-[#1E3A5F] flex items-center justify-between">
-                  <span className="font-mono text-xs text-[#475569]">11 fields extracted</span>
-                  <span className="font-mono text-xs text-[#475569]">0.8s</span>
+                {/* Card footer */}
+                <div className="flex items-center justify-between px-5 py-3 border-t border-[#2a2e35]">
+                  <span className="font-mono text-[11px] text-[#3a3f47]">11 fields · 0 errors</span>
+                  <span className="font-mono text-[11px] text-[#3a3f47]">0.8 s</span>
                 </div>
+              </div>
+
+              {/* Floating secondary card */}
+              <div
+                className="absolute -bottom-4 -right-4 lg:-bottom-6 lg:-right-6 rounded-xl border border-[#2a2e35] p-4 w-48 shadow-2xl hidden lg:block"
+                style={{ background: "#16181c" }}
+              >
+                <p className="text-[10px] font-semibold text-[#5b616e] uppercase tracking-widest mb-3">This session</p>
+                {[
+                  { name: "GSTR-3B", count: "12 files" },
+                  { name: "TDS", count: "8 files" },
+                  { name: "PF ECR", count: "5 files" },
+                ].map(({ name, count }) => (
+                  <div key={name} className="flex items-center justify-between py-1.5 border-b border-[#1e2127] last:border-0">
+                    <span className="text-[12px] text-[#a8acb3]">{name}</span>
+                    <span className="font-mono text-[12px] text-[#05b169]">{count}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -339,75 +375,75 @@ export default function LandingPage() {
       </section>
 
       {/* ── Trust bar ──────────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-border">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
-          <span className="text-xs text-muted-foreground font-medium">Trusted by CA firms across India for</span>
+      <div className="bg-[#f7f7f7] border-b border-[#dee1e6]">
+        <div className="max-w-[1200px] mx-auto px-6 lg:px-8 py-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
+          <span className="text-[12px] text-[#7c828a] font-medium">Trusted by CA firms across India</span>
           {[
             { icon: Shield, label: "DPDP Compliant" },
             { icon: Lock, label: "Zero data stored" },
-            { icon: FileText, label: "Govt portal PDFs only" },
+            { icon: FileText, label: "Official portal PDFs" },
             { icon: FileSpreadsheet, label: "Excel & Google Sheets" },
           ].map(({ icon: Icon, label }) => (
-            <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Icon className="h-3.5 w-3.5 text-secondary flex-shrink-0" />
-              <span>{label}</span>
+            <div key={label} className="flex items-center gap-1.5">
+              <Icon className="h-3.5 w-3.5 text-[#0F766E]" />
+              <span className="text-[13px] text-[#5b616e]">{label}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── Document Types Interactive ─────────────────────────────────────── */}
-      <section className="bg-white py-20">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+      {/* ── Document types explorer ────────────────────────────────────────── */}
+      <section className="py-24 bg-white">
+        <div className="max-w-[1200px] mx-auto px-6 lg:px-8">
           <div className="mb-12">
-            <p className="text-xs font-semibold tracking-widest uppercase text-secondary mb-3">What we parse</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-primary tracking-tight" style={{ letterSpacing: "-0.02em" }}>
-              Every statutory document,<br className="hidden sm:block" /> exactly the fields you need.
+            <p className="text-[12px] font-semibold tracking-widest uppercase text-[#0F766E] mb-3">What we extract</p>
+            <h2
+              className="text-[#0a0b0d]"
+              style={{ fontSize: "clamp(36px, 3.5vw, 52px)", fontWeight: 400, letterSpacing: "-1.2px", lineHeight: 1.05 }}
+            >
+              Every statutory document,<br />
+              every field you need.
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-0 border border-border rounded-xl overflow-hidden">
-            {/* Left: Doc type list */}
-            <div className="lg:col-span-2 border-b lg:border-b-0 lg:border-r border-border">
+          <div className="grid grid-cols-1 lg:grid-cols-5 border border-[#dee1e6] rounded-2xl overflow-hidden">
+            {/* Left list */}
+            <div className="lg:col-span-2 border-b lg:border-b-0 lg:border-r border-[#dee1e6]">
               {DOC_TYPES.map((doc, i) => (
                 <button
                   key={doc.key}
                   onClick={() => setActiveDoc(doc.key)}
                   className={cn(
-                    "w-full text-left px-6 py-5 flex items-start justify-between gap-4 transition-colors",
-                    i !== DOC_TYPES.length - 1 && "border-b border-border",
+                    "w-full text-left px-6 py-5 flex items-start justify-between gap-3 transition-colors",
+                    i !== DOC_TYPES.length - 1 && "border-b border-[#dee1e6]",
                     activeDoc === doc.key
-                      ? "bg-primary/5 border-l-2 border-l-primary"
-                      : "hover:bg-muted/50 border-l-2 border-l-transparent"
+                      ? "bg-[#f7f7f7]"
+                      : "hover:bg-[#fafafa]"
                   )}
                 >
                   <div>
-                    <p className={cn("font-semibold text-sm", activeDoc === doc.key ? "text-primary" : "text-foreground")}>
+                    <p className={cn("text-[15px] font-semibold", activeDoc === doc.key ? "text-[#1E3A5F]" : "text-[#0a0b0d]")}>
                       {doc.name}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{doc.short}</p>
+                    <p className="text-[13px] text-[#7c828a] mt-0.5">{doc.short}</p>
                   </div>
-                  {activeDoc === doc.key && (
-                    <ArrowRight className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  )}
+                  <ArrowRight className={cn("h-4 w-4 mt-0.5 flex-shrink-0 transition-colors", activeDoc === doc.key ? "text-[#1E3A5F]" : "text-[#dee1e6]")} />
                 </button>
               ))}
             </div>
 
-            {/* Right: Field table */}
-            <div className="lg:col-span-3 p-6 lg:p-8">
-              <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-                {activeDocData.description}
-              </p>
-              <div className="space-y-0">
-                <div className="grid grid-cols-2 gap-4 pb-2 mb-1 border-b border-border">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Field</span>
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Example Value</span>
+            {/* Right fields */}
+            <div className="lg:col-span-3 p-7 lg:p-8 bg-white">
+              <p className="text-[14px] text-[#5b616e] leading-relaxed mb-6">{active.description}</p>
+              <div>
+                <div className="grid grid-cols-2 gap-4 pb-2 border-b border-[#dee1e6] mb-1">
+                  <span className="text-[11px] font-semibold text-[#7c828a] uppercase tracking-wide">Field</span>
+                  <span className="text-[11px] font-semibold text-[#7c828a] uppercase tracking-wide">Example</span>
                 </div>
-                {activeDocData.fields.map(({ label, example }) => (
-                  <div key={label} className="grid grid-cols-2 gap-4 py-2 border-b border-border/50 last:border-0">
-                    <span className="text-sm text-foreground">{label}</span>
-                    <span className="font-mono text-xs text-secondary">{example}</span>
+                {active.fields.map(({ label, example }) => (
+                  <div key={label} className="grid grid-cols-2 gap-4 py-[9px] border-b border-[#eef0f3] last:border-0">
+                    <span className="text-[14px] text-[#0a0b0d]">{label}</span>
+                    <span className="font-mono text-[13px] text-[#0F766E]">{example}</span>
                   </div>
                 ))}
               </div>
@@ -416,74 +452,102 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Before / After ─────────────────────────────────────────────────── */}
-      <section className="py-20 bg-[#F8FAFC]">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="mb-12 text-center">
-            <p className="text-xs font-semibold tracking-widest uppercase text-secondary mb-3">The time difference</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-primary tracking-tight" style={{ letterSpacing: "-0.02em" }}>
-              A compliance task that used to take 45 minutes.
+      {/* ── How it works — light gray band ─────────────────────────────────── */}
+      <section id="how" style={{ background: "#f7f7f7" }} className="py-24">
+        <div className="max-w-[1200px] mx-auto px-6 lg:px-8">
+          <div className="mb-14">
+            <p className="text-[12px] font-semibold tracking-widest uppercase text-[#0F766E] mb-3">The workflow</p>
+            <h2
+              className="text-[#0a0b0d]"
+              style={{ fontSize: "clamp(36px, 3.5vw, 52px)", fontWeight: 400, letterSpacing: "-1.2px", lineHeight: 1.05 }}
+            >
+              From PDF to spreadsheet<br />
+              in under a minute.
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Before */}
-            <div className="rounded-xl border border-border bg-white p-8">
-              <div className="inline-flex items-center gap-2 mb-6">
-                <span className="text-xs font-semibold text-muted-foreground bg-muted px-3 py-1 rounded-full uppercase tracking-wide">Before</span>
-                <span className="text-xs text-muted-foreground">~45 minutes per client</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              {
+                n: "1",
+                title: "Select document type",
+                body: "Choose from GSTR-3B, TDS ITNS281, ESIC, PF ECR, or PTRC. Each parser knows exactly what to look for.",
+              },
+              {
+                n: "2",
+                title: "Upload PDFs",
+                body: "Drag and drop up to 20 files from any session. Text-layer PDFs from official government portals are fully supported.",
+              },
+              {
+                n: "3",
+                title: "Export structured data",
+                body: "Download formatted Excel or push directly to Google Sheets — column headers, values, ready for your master compliance register.",
+              },
+            ].map(({ n, title, body }) => (
+              <div key={n} className="bg-white rounded-2xl border border-[#dee1e6] p-8">
+                <div
+                  className="w-9 h-9 rounded-full border border-[#dee1e6] flex items-center justify-center mb-5"
+                >
+                  <span className="font-mono text-[13px] font-semibold text-[#7c828a]">{n}</span>
+                </div>
+                <h3 className="text-[17px] font-semibold text-[#0a0b0d] mb-2">{title}</h3>
+                <p className="text-[14px] text-[#5b616e] leading-relaxed">{body}</p>
               </div>
-              <div className="space-y-3">
+            ))}
+          </div>
+
+          {/* Before/after time comparison */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="bg-white rounded-2xl border border-[#dee1e6] p-8">
+              <div className="inline-flex items-center gap-2 bg-[#eef0f3] rounded-full px-3 py-1 mb-6">
+                <span className="text-[11px] font-semibold text-[#7c828a] uppercase tracking-wide">Before</span>
+                <span className="font-mono text-[12px] text-[#7c828a]">~45 min / client</span>
+              </div>
+              <div className="space-y-2.5">
                 {[
-                  "Open the GSTN portal and download GSTR-3B PDF",
+                  "Open the GSTN portal, download GSTR-3B PDF",
                   "Open Excel, create a new row for the client",
-                  "Manually type each figure — Output IGST, CGST, SGST...",
-                  "Open the TRACES portal for TDS challan",
-                  "Copy TAN, amount, challan number, date into Excel",
-                  "Repeat for ESIC, PF, PTRC challans",
-                  "Cross-check figures — one mistype = wrong workpaper",
-                  "Format the sheet, send to partner for review",
-                ].map((step, i) => (
-                  <div key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
-                    <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-xs font-medium flex-shrink-0 mt-0.5 text-muted-foreground">
-                      {i + 1}
-                    </span>
-                    <span>{step}</span>
+                  "Manually enter Output IGST, CGST, SGST",
+                  "Switch to TRACES, download TDS challan",
+                  "Copy TAN, amount, date, challan number",
+                  "Repeat for ESIC, PF ECR, PTRC challans",
+                  "Cross-check all figures against source PDF",
+                ].map((s, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-[#eef0f3] flex items-center justify-center text-[11px] font-medium text-[#7c828a] flex-shrink-0 mt-0.5">{i + 1}</span>
+                    <span className="text-[13px] text-[#5b616e]">{s}</span>
                   </div>
                 ))}
               </div>
             </div>
-
-            {/* After */}
-            <div className="rounded-xl border border-secondary/30 bg-secondary/5 p-8">
-              <div className="inline-flex items-center gap-2 mb-6">
-                <span className="text-xs font-semibold text-secondary bg-secondary/10 px-3 py-1 rounded-full uppercase tracking-wide">After</span>
-                <span className="text-xs text-secondary font-medium">~45 seconds per client</span>
+            <div className="bg-white rounded-2xl border border-[#0F766E]/30 p-8">
+              <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 mb-6">
+                <span className="text-[11px] font-semibold text-[#0F766E] uppercase tracking-wide">After</span>
+                <span className="font-mono text-[12px] text-[#0F766E]">~45 sec / client</span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {[
-                  { step: "Upload PDFs", sub: "Drag and drop up to 20 at once — any combination of doc types" },
-                  { step: "Select document type", sub: "One tab click: GSTR-3B, TDS, ESIC, PF ECR, or PTRC" },
-                  { step: "Click Process", sub: "Purpose-built parser extracts every field in under 3 seconds" },
-                  { step: "Download Excel or push to Sheets", sub: "Formatted output ready for your master compliance register" },
-                ].map(({ step, sub }, i) => (
+                  { t: "Upload PDFs", d: "Drag all challans at once — any combination of doc types" },
+                  { t: "One click to process", d: "Purpose-built parsers extract every field automatically" },
+                  { t: "Download or sync", d: "Excel download or Google Sheets push — formatted and ready" },
+                ].map(({ t, d }, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5">
-                      {i + 1}
+                    <div className="w-5 h-5 rounded-full bg-[#0F766E] flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-[10px] font-bold text-white">{i + 1}</span>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-foreground">{step}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+                      <p className="text-[14px] font-semibold text-[#0a0b0d]">{t}</p>
+                      <p className="text-[13px] text-[#5b616e] mt-0.5">{d}</p>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="mt-6 pt-6 border-t border-secondary/20">
+              <div className="mt-7 pt-6 border-t border-[#eef0f3]">
                 <Link href="/signup">
-                  <Button className="bg-secondary hover:bg-secondary/90 text-white font-semibold gap-2 w-full sm:w-auto">
+                  <button className="flex items-center gap-2 bg-[#1E3A5F] hover:bg-[#162d4a] text-white text-[15px] font-semibold px-6 h-11 rounded-full transition-colors">
                     Try it free
                     <ArrowRight className="h-4 w-4" />
-                  </Button>
+                  </button>
                 </Link>
               </div>
             </div>
@@ -492,86 +556,94 @@ export default function LandingPage() {
       </section>
 
       {/* ── Pricing ────────────────────────────────────────────────────────── */}
-      <section className="bg-white py-20" id="pricing">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+      <section id="pricing" className="py-24 bg-white">
+        <div className="max-w-[1200px] mx-auto px-6 lg:px-8">
           <div className="mb-12">
-            <p className="text-xs font-semibold tracking-widest uppercase text-secondary mb-3">Pricing</p>
-            <h2 className="text-3xl lg:text-4xl font-bold text-primary tracking-tight" style={{ letterSpacing: "-0.02em" }}>
+            <p className="text-[12px] font-semibold tracking-widest uppercase text-[#0F766E] mb-3">Pricing</p>
+            <h2
+              className="text-[#0a0b0d] mb-3"
+              style={{ fontSize: "clamp(36px, 3.5vw, 52px)", fontWeight: 400, letterSpacing: "-1.2px", lineHeight: 1.05 }}
+            >
               Simple. No surprises.
             </h2>
-            <p className="text-muted-foreground mt-3">Start free. Upgrade when you need more PDFs.</p>
+            <p className="text-[16px] text-[#5b616e]">Start free. Upgrade when your client count grows.</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {PLANS.map((plan) => (
               <div
                 key={plan.key}
                 className={cn(
-                  "rounded-xl border p-6 flex flex-col relative",
+                  "rounded-2xl border p-8 flex flex-col relative",
                   plan.dark
-                    ? "bg-primary border-primary text-white"
-                    : plan.featured
-                    ? "border-secondary border-l-4 bg-white shadow-sm"
-                    : "bg-white border-border"
+                    ? "border-transparent text-white"
+                    : "border-[#dee1e6] bg-white"
                 )}
+                style={plan.dark ? { background: "#0a0b0d" } : undefined}
               >
-                {plan.recommended && (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-secondary mb-4 uppercase tracking-wide">
-                    <Zap className="h-3 w-3" />
-                    Recommended
-                  </span>
-                )}
-
-                <div className="mb-5">
-                  <h3 className={cn("text-sm font-semibold mb-2 uppercase tracking-wide", plan.dark ? "text-white/70" : "text-muted-foreground")}>
-                    {plan.name}
-                  </h3>
-                  <div className="flex items-baseline gap-1">
-                    <span className={cn("text-4xl font-bold tracking-tight", plan.dark ? "text-white" : "text-foreground")}>
-                      {plan.price}
-                    </span>
-                    <span className={cn("text-sm", plan.dark ? "text-white/60" : "text-muted-foreground")}>
-                      {plan.period}
+                {plan.featured && (
+                  <div className="absolute top-5 right-5">
+                    <span
+                      className="text-[11px] font-semibold px-3 py-1 rounded-full"
+                      style={{ background: "#0F766E", color: "white" }}
+                    >
+                      Recommended
                     </span>
                   </div>
-                  <p className={cn("text-sm font-medium mt-1.5", plan.dark ? "text-[#F59E0B]" : "text-secondary")}>
-                    {plan.pdfCount}
+                )}
+
+                <div className="mb-6">
+                  <p className={cn("text-[12px] font-semibold uppercase tracking-widest mb-3", plan.dark ? "text-[#a8acb3]" : "text-[#7c828a]")}>
+                    {plan.name}
+                  </p>
+                  <div className="flex items-baseline gap-1">
+                    <span
+                      className={cn("font-medium", plan.dark ? "text-white" : "text-[#0a0b0d]")}
+                      style={{ fontSize: 44, letterSpacing: "-1px", lineHeight: 1.0, fontWeight: 400 }}
+                    >
+                      {plan.price}
+                    </span>
+                    {plan.period && (
+                      <span className={cn("text-[14px]", plan.dark ? "text-[#5b616e]" : "text-[#7c828a]")}>{plan.period}</span>
+                    )}
+                  </div>
+                  <p className={cn("text-[14px] font-medium mt-2", plan.dark ? "text-[#F59E0B]" : "text-[#0F766E]")}>
+                    {plan.subtitle}
                   </p>
                 </div>
 
-                <ul className="space-y-2.5 flex-1 mb-6">
+                <ul className="flex-1 space-y-2.5 mb-7">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm">
-                      <CheckCircle className={cn("h-4 w-4 mt-0.5 flex-shrink-0", plan.dark ? "text-[#F59E0B]" : "text-secondary")} />
-                      <span className={cn(plan.dark ? "text-white/85" : "text-muted-foreground")}>{f}</span>
+                    <li key={f} className="flex items-start gap-2.5 text-[14px]">
+                      <CheckCircle className={cn("h-4 w-4 mt-0.5 flex-shrink-0", plan.dark ? "text-[#F59E0B]" : "text-[#0F766E]")} />
+                      <span className={plan.dark ? "text-[#a8acb3]" : "text-[#5b616e]"}>{f}</span>
                     </li>
                   ))}
                 </ul>
 
                 <Link href="/signup">
-                  <Button
+                  <button
                     className={cn(
-                      "w-full font-semibold",
+                      "w-full h-11 rounded-full text-[15px] font-semibold transition-colors",
                       plan.dark
-                        ? "bg-[#F59E0B] hover:bg-[#D97706] text-[#0F172A]"
+                        ? "bg-[#F59E0B] hover:bg-[#D97706] text-[#0a0b0d]"
                         : plan.featured
-                        ? "bg-secondary hover:bg-secondary/90 text-white"
-                        : ""
+                        ? "bg-[#1E3A5F] hover:bg-[#162d4a] text-white"
+                        : "bg-[#eef0f3] hover:bg-[#dee1e6] text-[#0a0b0d]"
                     )}
-                    variant={plan.dark || plan.featured ? "default" : "outline"}
                   >
                     {plan.cta}
-                  </Button>
+                  </button>
                 </Link>
               </div>
             ))}
           </div>
 
-          <div className="mt-8 py-4 border-t border-border flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">All plans include:</span>
-            {["All 5 document types", "Excel download", "DPDP compliant", "No data stored"].map((f) => (
-              <span key={f} className="flex items-center gap-1.5">
-                <CheckCircle className="h-3.5 w-3.5 text-secondary" />
+          <div className="mt-7 py-5 border-t border-[#dee1e6] flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <span className="text-[13px] font-semibold text-[#0a0b0d]">All plans:</span>
+            {["All 5 document types", "Excel download", "DPDP compliant", "Zero data stored"].map((f) => (
+              <span key={f} className="flex items-center gap-1.5 text-[13px] text-[#5b616e]">
+                <Check className="h-3.5 w-3.5 text-[#0F766E]" />
                 {f}
               </span>
             ))}
@@ -579,75 +651,90 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── CTA band — dark ────────────────────────────────────────────────── */}
+      <section style={{ background: "#0a0b0d" }} className="py-24">
+        <div className="max-w-[1200px] mx-auto px-6 lg:px-8 text-center">
+          <h2
+            className="text-white mb-5"
+            style={{ fontSize: "clamp(36px, 3.5vw, 52px)", fontWeight: 400, letterSpacing: "-1.2px", lineHeight: 1.05 }}
+          >
+            Stop copying challan figures<br />
+            into Excel by hand.
+          </h2>
+          <p className="text-[#5b616e] text-[16px] mb-8 max-w-lg mx-auto">
+            Join 500+ CA professionals who parse statutory PDFs in seconds, not hours.
+          </p>
+          <Link href="/signup">
+            <button className="flex items-center gap-2 bg-[#F59E0B] hover:bg-[#D97706] text-[#0a0b0d] text-[16px] font-semibold px-8 h-14 rounded-full mx-auto transition-colors">
+              Get started free
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </Link>
+          <p className="text-[12px] text-[#3a3f47] mt-4">2 PDFs free · No credit card required</p>
+        </div>
+      </section>
+
       {/* ── FAQ ────────────────────────────────────────────────────────────── */}
-      <section className="py-20 bg-[#F8FAFC]">
-        <div className="max-w-2xl mx-auto px-6 lg:px-8">
+      <section className="py-24 bg-white">
+        <div className="max-w-[720px] mx-auto px-6 lg:px-8">
           <div className="mb-12">
-            <p className="text-xs font-semibold tracking-widest uppercase text-secondary mb-3">FAQ</p>
-            <h2 className="text-3xl font-bold text-primary tracking-tight" style={{ letterSpacing: "-0.02em" }}>
-              Questions
+            <p className="text-[12px] font-semibold tracking-widest uppercase text-[#0F766E] mb-3">FAQ</p>
+            <h2
+              className="text-[#0a0b0d]"
+              style={{ fontSize: "clamp(32px, 3vw, 44px)", fontWeight: 400, letterSpacing: "-1px", lineHeight: 1.1 }}
+            >
+              Common questions
             </h2>
           </div>
-          <div className="divide-y-0">
-            {FAQS.map((faq) => (
-              <FAQItem key={faq.q} q={faq.q} a={faq.a} />
-            ))}
-          </div>
+          {FAQS.map((faq) => (
+            <FAQItem key={faq.q} q={faq.q} a={faq.a} />
+          ))}
         </div>
       </section>
 
       {/* ── Footer ─────────────────────────────────────────────────────────── */}
-      <footer className="bg-primary text-white">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-12">
+      <footer className="bg-white border-t border-[#dee1e6]">
+        <div className="max-w-[1200px] mx-auto px-6 lg:px-8 py-12">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-10">
-            {/* Col 1 */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-6 h-6 bg-white/15 rounded flex items-center justify-center">
+                <div className="w-6 h-6 rounded-md bg-[#1E3A5F] flex items-center justify-center">
                   <FileText className="h-3 w-3 text-white" />
                 </div>
-                <span className="font-semibold text-white">StatutorySync</span>
+                <span className="font-semibold text-[14px] text-[#0a0b0d]">StatutorySync</span>
               </div>
-              <p className="text-sm text-white/60 leading-relaxed">
+              <p className="text-[13px] text-[#7c828a] leading-relaxed">
                 Statutory dues compliance automation for Indian CA professionals.
               </p>
             </div>
-            {/* Col 2 */}
             <div>
-              <p className="text-xs font-semibold text-white/40 uppercase tracking-wide mb-3">Product</p>
+              <p className="text-[11px] font-semibold text-[#a8acb3] uppercase tracking-widest mb-3">Product</p>
               <div className="space-y-2">
                 {[
                   { label: "Upload & Parse", href: "/upload" },
                   { label: "Pricing", href: "#pricing" },
-                  { label: "Login", href: "/login" },
-                  { label: "Sign Up Free", href: "/signup" },
+                  { label: "Sign in", href: "/login" },
+                  { label: "Get started", href: "/signup" },
                 ].map(({ label, href }) => (
                   <div key={label}>
-                    <Link href={href} className="text-sm text-white/60 hover:text-white transition-colors">
+                    <Link href={href} className="text-[13px] text-[#5b616e] hover:text-[#0a0b0d] transition-colors">
                       {label}
                     </Link>
                   </div>
                 ))}
               </div>
             </div>
-            {/* Col 3 */}
             <div>
-              <p className="text-xs font-semibold text-white/40 uppercase tracking-wide mb-3">Legal</p>
+              <p className="text-[11px] font-semibold text-[#a8acb3] uppercase tracking-widest mb-3">Legal</p>
               <div className="space-y-2">
-                <div>
-                  <Link href="/privacy" className="text-sm text-white/60 hover:text-white transition-colors">Privacy Policy</Link>
-                </div>
-                <div>
-                  <Link href="/terms" className="text-sm text-white/60 hover:text-white transition-colors">Terms of Service</Link>
-                </div>
+                <div><Link href="/privacy" className="text-[13px] text-[#5b616e] hover:text-[#0a0b0d] transition-colors">Privacy Policy</Link></div>
+                <div><Link href="/terms" className="text-[13px] text-[#5b616e] hover:text-[#0a0b0d] transition-colors">Terms of Service</Link></div>
               </div>
-              <p className="text-xs text-white/40 mt-6">Built for Indian CA professionals</p>
+              <p className="text-[12px] text-[#a8acb3] mt-5">Built for Indian CA professionals</p>
             </div>
           </div>
-          <div className="border-t border-white/10 pt-6">
-            <p className="text-xs text-white/40">
-              &copy; 2026 StatutorySync. All rights reserved.
-            </p>
+          <div className="border-t border-[#eef0f3] pt-5">
+            <p className="text-[12px] text-[#a8acb3]">© 2026 StatutorySync. All rights reserved.</p>
           </div>
         </div>
       </footer>

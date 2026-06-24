@@ -63,8 +63,8 @@ htmlcov/
 # Supabase
 .supabase/
 
-# MCP config (contains auth tokens)
-.mcp.json
+# MCP config (contains auth tokens) — backend only, frontend shadcn mcp is safe
+backend/.mcp.json
 
 # Plan files
 .claude/

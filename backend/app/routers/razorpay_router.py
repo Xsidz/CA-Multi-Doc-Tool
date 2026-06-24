@@ -288,22 +288,12 @@ async def verify_addon_payment(
     sb = create_client(settings.supabase_url, settings.supabase_service_key)
 
     try:
-        # Upsert addon_credits: increment existing credits or insert new row
-        existing = sb.table("addon_credits").select("id, credits_remaining").eq("user_id", user["user_id"]).maybe_single().execute()
-
-        if existing.data:
-            new_total = existing.data["credits_remaining"] + credits
-            sb.table("addon_credits").update({
-                "credits_remaining": new_total,
-                "updated_at": datetime.datetime.utcnow().isoformat(),
-            }).eq("user_id", user["user_id"]).execute()
-        else:
-            sb.table("addon_credits").insert({
-                "user_id": user["user_id"],
-                "credits_remaining": credits,
-                "created_at": datetime.datetime.utcnow().isoformat(),
-                "updated_at": datetime.datetime.utcnow().isoformat(),
-            }).execute()
+        # Upsert addon_credits using Postgres ON CONFLICT to safely increment
+        # Avoids maybe_single() None-handling bug and race conditions
+        sb.rpc("increment_addon_credits", {
+            "p_user_id": user["user_id"],
+            "p_credits": credits,
+        }).execute()
 
         # Log the purchase
         sb.table("addon_purchases").insert({

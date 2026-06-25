@@ -5,9 +5,11 @@ import { createBrowserClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle, Zap, Plus, FileText } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { apiClient } from "@/lib/api-client";
+import { useUsage } from "@/hooks/useUsage";
 
 declare global {
   interface Window {
@@ -119,6 +121,7 @@ export default function BillingPage() {
   const { toast } = useToast();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [loadingAddon, setLoadingAddon] = useState<string | null>(null);
+  const { plan: currentPlan, isLoading: planLoading } = useUsage();
 
   async function handleUpgrade(planKey: "starter" | "standard" | "pro") {
     setLoadingPlan(planKey);
@@ -294,54 +297,80 @@ export default function BillingPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {PLANS.map((p) => (
-            <Card
-              key={p.name}
-              className={`relative flex flex-col ${p.featured ? "border-2 border-secondary shadow-lg" : "border border-border"}`}
-            >
-              {p.featured && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <Badge className="bg-secondary text-white text-xs px-3 py-1">Most Popular</Badge>
-                </div>
-              )}
-              <CardHeader className="pb-2">
-                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{p.name}</p>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-3xl font-bold text-foreground">{p.price}</span>
-                  {p.plan && <span className="text-sm text-muted-foreground">/month</span>}
-                </div>
-                <p className="text-sm text-secondary font-medium">{p.limit}</p>
-              </CardHeader>
-              <CardContent className="flex flex-col flex-1 gap-4">
-                <ul className="space-y-2 flex-1">
-                  {p.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm text-foreground">
-                      <CheckCircle className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                {p.plan ? (
-                  <Button
-                    className={`w-full mt-auto ${p.featured ? "bg-secondary hover:bg-secondary/90 text-white" : "bg-primary hover:bg-primary/90 text-white"}`}
-                    disabled={loadingPlan === p.plan}
-                    onClick={() => handleUpgrade(p.plan!)}
-                  >
-                    {loadingPlan === p.plan ? (
-                      <span className="flex items-center gap-2">
-                        <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                        Processing...
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2"><Zap className="w-4 h-4" />Upgrade to {p.name}</span>
-                    )}
-                  </Button>
-                ) : (
-                  <Button variant="outline" disabled className="w-full mt-auto">Current Free Plan</Button>
+          {PLANS.map((p) => {
+            // Determine if this card is the user's active plan
+            const isCurrent = planLoading
+              ? false
+              : p.plan === null
+                ? currentPlan === "free"
+                : p.plan === currentPlan;
+
+            return (
+              <Card
+                key={p.name}
+                className={`relative flex flex-col ${
+                  isCurrent
+                    ? "border-2 border-primary shadow-md"
+                    : p.featured
+                    ? "border-2 border-secondary shadow-lg"
+                    : "border border-border"
+                }`}
+              >
+                {/* Current plan badge — takes priority over Most Popular */}
+                {isCurrent && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <Badge className="bg-primary text-white text-xs px-3 py-1">Current Plan</Badge>
+                  </div>
                 )}
-              </CardContent>
-            </Card>
-          ))}
+                {!isCurrent && p.featured && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <Badge className="bg-secondary text-white text-xs px-3 py-1">Most Popular</Badge>
+                  </div>
+                )}
+                <CardHeader className="pb-2">
+                  <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{p.name}</p>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-3xl font-bold text-foreground">{p.price}</span>
+                    {p.plan && <span className="text-sm text-muted-foreground">/month</span>}
+                  </div>
+                  <p className="text-sm text-secondary font-medium">{p.limit}</p>
+                </CardHeader>
+                <CardContent className="flex flex-col flex-1 gap-4">
+                  <ul className="space-y-2 flex-1">
+                    {p.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm text-foreground">
+                        <CheckCircle className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  {planLoading ? (
+                    <Skeleton className="h-9 w-full mt-auto rounded-md" />
+                  ) : isCurrent ? (
+                    <Button variant="outline" disabled className="w-full mt-auto">
+                      <CheckCircle className="w-4 h-4 mr-2 text-primary" />
+                      Current Plan
+                    </Button>
+                  ) : p.plan ? (
+                    <Button
+                      className={`w-full mt-auto ${p.featured ? "bg-secondary hover:bg-secondary/90 text-white" : "bg-primary hover:bg-primary/90 text-white"}`}
+                      disabled={loadingPlan === p.plan}
+                      onClick={() => handleUpgrade(p.plan!)}
+                    >
+                      {loadingPlan === p.plan ? (
+                        <span className="flex items-center gap-2">
+                          <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                          Processing...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2"><Zap className="w-4 h-4" />Upgrade to {p.name}</span>
+                      )}
+                    </Button>
+                  ) : null}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
 

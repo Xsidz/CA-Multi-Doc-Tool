@@ -21,15 +21,29 @@ async def get_usage(user: Annotated[dict, Depends(get_current_user)]) -> dict:
     Falls back to free plan defaults when no subscription row exists yet.
     Safe to call unauthenticated — returns 401 via the dependency.
     """
+    from app.config import get_settings as _get_settings
+    from supabase import create_client as _create_client
     data = await usage_service.get_usage(user["user_id"])
     plan = data.get("plan", "free")
-    # After view fix: column is pdf_limit. Old view had plan_limit. Fall back to constants.
     pdf_limit = data.get("pdf_limit") or data.get("plan_limit") or PLAN_LIMITS.get(plan, 2)
     files_used = data.get("files_used", 0) or 0
+
+    # Fetch addon credits balance
+    addon_credits = 0
+    try:
+        _s = _get_settings()
+        _sb = _create_client(_s.supabase_url, _s.supabase_service_key)
+        _r = _sb.table("addon_credits").select("credits_remaining").eq("user_id", user["user_id"]).execute()
+        if _r.data:
+            addon_credits = _r.data[0].get("credits_remaining", 0) or 0
+    except Exception:
+        pass
+
     return {
         "pdfs_used": files_used,
         "pdf_limit": pdf_limit,
         "plan": plan,
+        "addon_credits": addon_credits,
     }
 
 _settings = get_settings()

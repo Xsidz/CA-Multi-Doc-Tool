@@ -7,6 +7,7 @@ interface UsageData {
   pdfs_used: number;
   pdf_limit: number;
   plan: string;
+  addon_credits: number;
 }
 
 const PLAN_LIMITS: Record<string, number> = {
@@ -31,7 +32,6 @@ export function useUsage() {
   }, []);
 
   const { data, error, isLoading, mutate } = useSWR<UsageData>(
-    // Only fetch when we have a confirmed session — prevents Bearer null
     hasSession ? "/usage" : null,
     () => apiClient.get<UsageData>("/usage"),
     { revalidateOnFocus: true }
@@ -40,11 +40,15 @@ export function useUsage() {
   const plan = data?.plan ?? "free";
   const used = data?.pdfs_used ?? 0;
   const limit = data?.pdf_limit ?? PLAN_LIMITS[plan] ?? 2;
-  const percentUsed = limit > 0 ? Math.round((used / limit) * 100) : 0;
+  const addonCredits = data?.addon_credits ?? 0;
+  const effectiveLimit = limit + addonCredits;
+  const percentUsed = effectiveLimit > 0 ? Math.round((used / effectiveLimit) * 100) : 0;
 
   return {
     used,
     limit,
+    addonCredits,
+    effectiveLimit,
     plan,
     percentUsed,
     isLoading: !hasSession || isLoading,

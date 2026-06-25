@@ -94,14 +94,31 @@ def check_plan_gate(
     except Exception:
         used = 0
 
-    if used + file_count > pdf_limit:
+    # Fetch addon credits — treated as extra capacity on top of plan limit
+    addon_credits = 0
+    try:
+        ac = (
+            sb.table("addon_credits")
+            .select("credits_remaining")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if ac.data:
+            addon_credits = ac.data[0].get("credits_remaining", 0) or 0
+    except Exception:
+        pass
+
+    effective_limit = pdf_limit + addon_credits
+
+    if used + file_count > effective_limit:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
                 "error": "plan_limit_exceeded",
                 "plan": plan,
                 "used": used,
-                "limit": pdf_limit,
+                "limit": effective_limit,
+                "addon_credits": addon_credits,
                 "requested": file_count,
                 "upgrade_url": UPGRADE_URL,
             },

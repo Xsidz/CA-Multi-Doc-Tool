@@ -42,6 +42,7 @@ export default async function DashboardPage() {
   let plan = "free";
   let limit = 2;
   let periodEnd: string | null = null;
+  let addonCredits = 0;
 
   if (userId) {
     const { data: usageRow } = await supabase
@@ -56,6 +57,13 @@ export default async function DashboardPage() {
       limit = usageRow.pdf_limit ?? PLAN_LIMITS[plan] ?? 2;
       periodEnd = usageRow.period_end ?? null;
     }
+
+    const { data: acRow } = await supabase
+      .from("addon_credits")
+      .select("credits_remaining")
+      .eq("user_id", userId)
+      .single();
+    if (acRow) addonCredits = acRow.credits_remaining ?? 0;
   }
 
   // Fetch doc type breakdown
@@ -80,8 +88,9 @@ export default async function DashboardPage() {
     value: count,
   }));
 
-  const percentUsed = limit > 0 ? Math.round((used / limit) * 100) : 0;
-  const remaining = limit - used;
+  const effectiveLimit = limit + addonCredits;
+  const percentUsed = effectiveLimit > 0 ? Math.round((used / effectiveLimit) * 100) : 0;
+  const remaining = effectiveLimit - used;
 
   // Format renewal date
   const renewalDate = periodEnd
@@ -146,7 +155,7 @@ export default async function DashboardPage() {
                 </div>
                 <div className="text-3xl font-bold text-primary tabular-nums">
                   {used}
-                  <span className="text-base font-normal text-muted-foreground"> / {limit}</span>
+                  <span className="text-base font-normal text-muted-foreground"> / {effectiveLimit}</span>
                 </div>
                 <Progress value={percentUsed} className="mt-3 h-1.5" />
                 <p className="text-xs text-muted-foreground mt-2">
@@ -156,6 +165,11 @@ export default async function DashboardPage() {
                     <span className="text-destructive font-medium">Limit reached — upgrade to continue</span>
                   )}
                 </p>
+                {addonCredits > 0 && (
+                  <p className="text-xs text-secondary font-semibold mt-1">
+                    +{addonCredits} addon credits included
+                  </p>
+                )}
               </CardContent>
             </Card>
 

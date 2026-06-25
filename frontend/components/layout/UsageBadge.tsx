@@ -1,11 +1,10 @@
 "use client";
 
 import { useUsage } from "@/hooks/useUsage";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function UsageBadge() {
-  const { used, limit, percentUsed, isLoading } = useUsage();
+  const { used, limit, addonCredits, effectiveLimit, percentUsed, isLoading } = useUsage();
 
   if (isLoading) {
     return (
@@ -28,7 +27,7 @@ export function UsageBadge() {
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs text-muted-foreground">PDFs this month</span>
         <span className="text-xs font-medium text-foreground">
-          {used} / {limit}
+          {used} / {effectiveLimit}
         </span>
       </div>
       <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -37,9 +36,14 @@ export function UsageBadge() {
           style={{ width: `${Math.min(percentUsed, 100)}%` }}
         />
       </div>
-      {percentUsed >= 80 && (
+      {addonCredits > 0 && (
+        <p className="text-xs mt-1.5 text-secondary font-medium">
+          +{addonCredits} addon credits
+        </p>
+      )}
+      {percentUsed >= 80 && addonCredits === 0 && (
         <p className="text-xs mt-1.5 text-amber-600 font-medium">
-          {percentUsed >= 100 ? "Limit reached — upgrade to continue" : "Approaching limit"}
+          {percentUsed >= 100 ? "Limit reached — buy credits or upgrade" : "Approaching limit"}
         </p>
       )}
     </div>

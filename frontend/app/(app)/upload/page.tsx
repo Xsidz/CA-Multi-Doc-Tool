@@ -5,6 +5,7 @@ import { Loader2, AlertTriangle, FileCheck2 } from "lucide-react";
 import { DocTypeSelector } from "@/components/upload/DocTypeSelector";
 import { DropZone } from "@/components/upload/DropZone";
 import { FileStatusList, type FileStatusItem } from "@/components/upload/FileStatusList";
+import { ProcessingCard } from "@/components/upload/ProcessingCard";
 import { ParseResultTable } from "@/components/upload/ParseResultTable";
 import { ExportPanel } from "@/components/upload/ExportPanel";
 import { UpgradeModal } from "@/components/billing/UpgradeModal";
@@ -137,29 +138,49 @@ export default function UploadPage() {
   async function handleProcess() {
     if (files.length === 0) return;
     setPageState("uploading");
-    setFileStatuses((prev) => prev.map((f) => ({ ...f, status: "processing" as const })));
+
+    // Stagger files into "processing" state for a natural feel (150ms each)
+    files.forEach((f, i) => {
+      setTimeout(() => {
+        setFileStatuses((prev) =>
+          prev.map((s) => s.name === f.name ? { ...s, status: "processing" as const } : s)
+        );
+      }, i * 150);
+    });
+
     setPageState("processing");
 
     try {
       const result = await parseDocuments(docType, files);
       setParseResult(result);
-      setPageState("done");
-      setFileStatuses((prev) =>
-        prev.map((f) => {
-          const errorEntry = result.error_files.find((e) => e.startsWith(f.name));
-          if (errorEntry) {
-            const errorType = errorEntry.split(":")[1] ?? "unknown";
-            return errorType === "image_pdf"
-              ? { ...f, status: "error_image" as const }
-              : { ...f, status: "error_parse" as const, error: errorType };
-          }
-          return { ...f, status: "done" as const, fieldCount: Object.keys(result.rows[0] ?? {}).length };
-        })
-      );
-      toast({
-        title: "Parsing complete",
-        description: `${result.total_parsed} row${result.total_parsed !== 1 ? "s" : ""} extracted from ${files.length} file${files.length !== 1 ? "s" : ""}.`,
+
+      // Stagger completion transitions — files land one by one
+      const updatedStatuses = files.map((f) => {
+        const errorEntry = result.error_files.find((e) => e.startsWith(f.name));
+        if (errorEntry) {
+          const errorType = errorEntry.split(":")[1] ?? "unknown";
+          return errorType === "image_pdf"
+            ? { name: f.name, status: "error_image" as const }
+            : { name: f.name, status: "error_parse" as const, error: errorType };
+        }
+        const nonInternalFields = Object.keys(result.rows[0] ?? {}).filter((k) => !k.startsWith("_"));
+        return { name: f.name, status: "done" as const, fieldCount: nonInternalFields.length };
       });
+
+      updatedStatuses.forEach((s, i) => {
+        setTimeout(() => {
+          setFileStatuses((prev) => prev.map((f) => f.name === s.name ? s : f));
+        }, i * 200);
+      });
+
+      // Delay setting "done" state until stagger animation completes
+      setTimeout(() => {
+        setPageState("done");
+        toast({
+          title: "Parsing complete",
+          description: `${result.total_parsed} row${result.total_parsed !== 1 ? "s" : ""} extracted from ${files.length} file${files.length !== 1 ? "s" : ""}.`,
+        });
+      }, updatedStatuses.length * 200 + 100);
     } catch (err: unknown) {
       if (err instanceof PlanLimitError) {
         setUpgradeModal({ open: true, used: err.used, limit: err.limit });
@@ -281,33 +302,35 @@ export default function UploadPage() {
       {/* File summary + process */}
       {fileStatuses.length > 0 && (
         <div className="space-y-4">
-          {/* Summary pill */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <FileCheck2 className="h-4 w-4 text-secondary" />
-            <span>
-              <strong className="text-foreground">{files.length} PDF{files.length !== 1 ? "s" : ""}</strong> ready
-              — will be parsed as <strong className="text-secondary">{docTypeLabel}</strong>
-            </span>
-          </div>
+          {/* Summary pill — only when idle */}
+          {!isProcessing && pageState !== "done" && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <FileCheck2 className="h-4 w-4 text-secondary" />
+              <span>
+                <strong className="text-foreground">{files.length} PDF{files.length !== 1 ? "s" : ""}</strong> ready
+                — will be parsed as <strong className="text-secondary">{docTypeLabel}</strong>
+              </span>
+            </div>
+          )}
 
-          <FileStatusList files={fileStatuses} />
+          {/* Processing card — shown while processing, replaces plain list */}
+          {isProcessing ? (
+            <ProcessingCard files={fileStatuses} docTypeLabel={docTypeLabel} />
+          ) : (
+            <FileStatusList files={fileStatuses} />
+          )}
 
-          <div className="flex justify-end">
-            <Button
-              onClick={handleProcess}
-              disabled={!canProcess}
-              className="min-w-[200px] bg-accent hover:bg-accent/90 text-foreground font-semibold"
-            >
-              {isProcessing ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Processing...
-                </span>
-              ) : (
-                `Process ${files.length} PDF${files.length !== 1 ? "s" : ""} as ${docTypeLabel}`
-              )}
-            </Button>
-          </div>
+          {!isProcessing && pageState !== "done" && (
+            <div className="flex justify-end">
+              <Button
+                onClick={handleProcess}
+                disabled={!canProcess}
+                className="min-w-[200px] bg-accent hover:bg-accent/90 text-foreground font-semibold"
+              >
+                {`Process ${files.length} PDF${files.length !== 1 ? "s" : ""} as ${docTypeLabel}`}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

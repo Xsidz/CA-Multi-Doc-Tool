@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
 
+    # ── OpenRouter (AI parser) ───────────────────────────────────────────────
+    openrouter_api_key: str = ""
+    openrouter_text_model: str = "qwen/qwen2.5-7b-instruct"
+    openrouter_vision_model: str = "qwen/qwen2.5-vl-7b-instruct"
+
     # ── Composio ────────────────────────────────────────────────────────────
     composio_api_key: str = ""
 

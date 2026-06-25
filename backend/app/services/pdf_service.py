@@ -126,6 +126,8 @@ async def parse_batch(
     Returns a :class:`ParseBatchResponse` containing all rows plus any
     error file names.
     """
+    from app.parsers.ai_parser import ai_parse, _should_use_ai
+
     parser = PARSER_REGISTRY[doc_type]
     all_rows: list[dict[str, Any]] = []
     error_files: list[str] = []
@@ -136,9 +138,16 @@ async def parse_batch(
 
         try:
             parsed_rows: list[dict[str, Any]] = parser(file_bytes)
-            # Tag each row with its source filename for traceability
             for r in parsed_rows:
                 r.setdefault("_source_file", filename)
+
+            # ── AI fallback — invisible to frontend ──────────────────────────
+            # Trigger if >40% of expected fields are null OR parse_error present
+            if _should_use_ai(parsed_rows, doc_type):
+                ai_rows = await ai_parse(doc_type, file_bytes, filename)
+                if ai_rows and not ai_rows[0].get("_parse_error"):
+                    parsed_rows = ai_rows
+
             all_rows.extend(parsed_rows)
             await usage_service.increment_usage(
                 user_id=user_id,
@@ -149,6 +158,16 @@ async def parse_batch(
 
         except ValueError as exc:
             error_type = str(exc)
+            # IMAGE_PDF: try AI vision path before giving up
+            if "IMAGE_PDF" in error_type:
+                ai_rows = await ai_parse(doc_type, file_bytes, filename)
+                if ai_rows and not ai_rows[0].get("_parse_error"):
+                    all_rows.extend(ai_rows)
+                    await usage_service.increment_usage(
+                        user_id=user_id, doc_type=doc_type,
+                        filename_hash=filename_hash, status="success",
+                    )
+                    continue
             error_files.append(f"{filename}: {error_type}")
             await usage_service.increment_usage(
                 user_id=user_id,
